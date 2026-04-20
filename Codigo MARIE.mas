@@ -1,0 +1,1645 @@
+ORG 100
+
+/ Inicializacion
+Inicio,      Load C_GRIS_O
+             Store TEMP_COL
+             Load BASE_DISP   / Direccion F00
+             Store PTR_DISP
+
+/ Pinta el display de Gris Oscuro al empezar
+LimpiarDisp, Load TEMP_COL
+             StoreI PTR_DISP
+             Load PTR_DISP
+             Add UNO
+             Store PTR_DISP
+             Subt C_FIN_DISP  
+             Skipcond 400
+             Jump LimpiarDisp
+
+
+			 Load REST_INI
+			 Store RESTANTES
+			 JnS DibujarTablero
+			 Jump LoopJuego
+
+/ Subrutina: Dibujar todo el tablero visible
+/ Recorre las celdas y pinta si es TABV o TAB
+DibujarTablero, HEX 0
+				Load CERO
+				Store IND
+
+DibLoop, Load BASEV
+		 Add IND
+		 Store PTRV
+
+		 Load BASE
+		 Add IND
+		 Store PTR
+
+		 LoadI PTR
+		 Store VAL
+
+		 JnS PintarCelda
+
+		 Load IND
+		 Add UNO
+		 Store IND
+		 Subt C_256
+		 SkipCond 400
+		 Jump DibLoop
+
+		 JumpI DibujarTablero
+
+/ Bucle principal del juego
+/ Entradas del usuario
+LoopJuego,  Input
+			Store FILA
+
+			Input
+			Store COL
+
+			Input
+			Store ACCION
+
+			/ fila >= 0
+			Load FILA
+			SkipCond 000
+			Jump ValFilaMax
+			Jump LoopJuego
+			
+			/ fila < 16
+ValFilaMax, Load FILA
+			Subt DIECISEIS
+			SkipCond 000
+			Jump LoopJuego
+
+			/ columna >= 0
+			Load COL
+			SkipCond 000
+			Jump ValColMax
+			Jump LoopJuego
+
+			/ columna < 16
+ValColMax,  Load COL
+			Subt DIECISEIS
+			SkipCond 000
+			Jump LoopJuego
+
+			/ accion = 1 (revelar) o 2 (bandera)
+			Load ACCION
+			Subt UNO
+			SkipCond 400
+			Jump RevisarAccion2
+			Jump CalcularIndice
+
+RevisarAccion2, Load ACCION 
+				Subt DOS
+				SkipCond 400
+				Jump LoopJuego / vuelve a pedir datos
+
+				/ IND = FILA * 16
+CalcularIndice, Load FILA
+				Store IND
+
+				Load IND
+				Add IND
+				Store IND
+
+				Load IND
+				Add IND
+				Store IND
+
+				Load IND
+				Add IND
+				Store IND
+
+				Load IND
+				Add IND
+				Store IND
+
+				/ IND = FILA * 16 + COL
+				Load IND
+				Add COL
+				Store IND
+
+				Load BASE
+				Add IND
+				Store PTR / celda real
+
+				Load BASEV
+				Add IND
+				Store PTRV / estado visible
+
+				/ 1 - revela
+				Load ACCION
+				Subt UNO
+				SkipCond 400
+				Jump AccionBandera
+				Jump AccionRevelar
+
+AccionRevelar,  LoadI PTRV
+                SkipCond 400
+                Jump LoopJuego	/ solo revela si estaba oculta
+
+                LoadI PTR
+                Store VAL
+
+				/ Compara con mina
+                Load VAL
+                Subt MINA
+                SkipCond 400
+                Jump RevisarCero
+                Jump Perder
+
+				/ VAL == 0 - expande
+RevisarCero,    Load VAL
+                SkipCond 400
+                Jump RevelarSoloUna
+                Jump ExpandirInicio
+
+RevelarSoloUna, Load REVE
+                StoreI PTRV
+
+                Load RESTANTES
+                Subt UNO
+                Store RESTANTES
+
+                JnS DibujarTablero
+
+                Load RESTANTES
+                SkipCond 400
+                Jump LoopJuego
+                Jump Ganar
+				
+AccionBandera,  LoadI PTRV
+				SkipCond 400
+				Jump QuitarBandera
+
+				Load DOS
+				StoreI PTRV
+				Jns DibujarTablero
+				Jump LoopJuego
+				
+QuitarBandera,  LoadI PTRV
+				Subt DOS
+				SkipCond 400
+				Jump LoopJuego
+
+				Load CERO
+				StoreI PTRV
+				JnS DibujarTablero
+				Jump LoopJuego
+
+/ Expanción de 0
+/ Usa una cola de pares (fila, col)
+ExpandirInicio, Load CERO
+                Store QHEAD
+                Store QTAIL
+
+                /mete fila y col iniciales
+                Load FILA
+                Store NROW
+                Load COL
+                Store NCOL
+                JnS TryEnqueue
+
+ExpandirLoop,   Load QHEAD
+                Subt QTAIL
+                SkipCond 400
+                Jump ExpandirProcesar
+                Jump ExpandirFin
+
+ExpandirProcesar, JnS DequeuePair
+
+                /IND = CURF * 16 + CURC
+                Load CURF
+                Store IND
+                Load IND
+                Add IND
+                Store IND
+                Load IND
+                Add IND
+                Store IND
+                Load IND
+                Add IND
+                Store IND
+                Load IND
+                Add IND
+                Store IND
+                Load IND
+                Add CURC
+                Store IND
+
+                / punteros real y visible
+                Load BASE
+                Add IND
+                Store PTR
+
+                Load BASEV
+                Add IND
+                Store PTRV
+
+                / si no esta oculta, saltar
+                LoadI PTRV
+                SkipCond 400
+                Jump ExpandirLoop
+
+                / si es mina, NO revelarla en expansion
+                LoadI PTR
+                Store VAL
+                Load VAL
+                Subt MINA
+                SkipCond 400
+                Jump RevelarActualExpand
+                Jump ExpandirLoop
+
+RevelarActualExpand, Load REVE
+                     StoreI PTRV
+
+                     Load RESTANTES
+                     Subt UNO
+                     Store RESTANTES
+
+                     / si no es 0, no seguir expandiendo
+                     Load VAL
+                     SkipCond 400
+                     Jump ExpandirLoop
+
+                     / si es 0, encolar 8 vecinos
+                     JnS EnqueueNeighbors
+                     Jump ExpandirLoop
+
+ExpandirFin,    JnS DibujarTablero
+                Load RESTANTES
+                SkipCond 400
+                Jump LoopJuego
+                Jump Ganar
+
+/ Encola un par (NROW, NCOL) solo si esta dentro de 0..15
+TryEnqueue,     HEX 0
+                / fila >= 0
+                Load NROW
+                SkipCond 000
+                Jump TE_FilaMax
+                JumpI TryEnqueue
+
+TE_FilaMax,     Load NROW
+                Subt DIECISEIS
+                SkipCond 000
+                JumpI TryEnqueue
+
+                / col >= 0
+                Load NCOL
+                SkipCond 000
+                Jump TE_ColMax
+                JumpI TryEnqueue
+
+TE_ColMax,      Load NCOL
+                Subt DIECISEIS
+                SkipCond 000
+                JumpI TryEnqueue
+
+                / QFILA[QTAIL] = NROW
+                Load BASE_QFILA
+                Add QTAIL
+                Store QPTR
+
+                Load NROW
+                StoreI QPTR
+
+                / QCOL[QTAIL] = NCOL
+                Load BASE_QCOL
+                Add QTAIL
+                Store QPTR
+
+                Load NCOL
+                StoreI QPTR
+
+                / QTAIL++
+                Load QTAIL
+                Add UNO
+                Store QTAIL
+
+                JumpI TryEnqueue
+
+/ Saca un par de la cola y lo deja en CURF, CURC
+DequeuePair,    HEX 0
+                Load BASE_QFILA
+                Add QHEAD
+                Store QPTR
+                LoadI QPTR
+                Store CURF
+
+                Load BASE_QCOL
+                Add QHEAD
+                Store QPTR
+                LoadI QPTR
+                Store CURC
+
+                Load QHEAD
+                Add UNO
+                Store QHEAD
+
+                JumpI DequeuePair
+
+/ Encola los 8 vecinos de (CURF, CURC)
+EnqueueNeighbors, HEX 0
+
+                / (-1, -1)
+                Load CURF
+                Add MENOS1
+                Store NROW
+                Load CURC
+                Add MENOS1
+                Store NCOL
+                JnS TryEnqueue
+
+                / (-1, 0)
+                Load CURF
+                Add MENOS1
+                Store NROW
+                Load CURC
+                Store NCOL
+                JnS TryEnqueue
+
+                / (-1, +1)
+                Load CURF
+                Add MENOS1
+                Store NROW
+                Load CURC
+                Add UNO
+                Store NCOL
+                JnS TryEnqueue
+
+                / (0, -1)
+                Load CURF
+                Store NROW
+                Load CURC
+                Add MENOS1
+                Store NCOL
+                JnS TryEnqueue
+
+                / (0, +1)
+                Load CURF
+                Store NROW
+                Load CURC
+                Add UNO
+                Store NCOL
+                JnS TryEnqueue
+
+                / (+1, -1)
+                Load CURF
+                Add UNO
+                Store NROW
+                Load CURC
+                Add MENOS1
+                Store NCOL
+                JnS TryEnqueue
+
+                / (+1, 0)
+                Load CURF
+                Add UNO
+                Store NROW
+                Load CURC
+                Store NCOL
+                JnS TryEnqueue
+
+                / (+1, +1)
+                Load CURF
+                Add UNO
+                Store NROW
+                Load CURC
+                Add UNO
+                Store NCOL
+                JnS TryEnqueue
+
+                JumpI EnqueueNeighbors
+
+Ganar, Jump RevelarMapaFinal
+Perder, Jump RevelarMapaFinal
+
+/ Revela el mapa final y termina el juego
+RevelarMapaFinal, Load CERO
+				  Store IND
+
+LoopFinal,  Load BASEV
+			Add IND
+			Store PTRV
+
+			Load REVE
+			StoreI PTRV
+
+			Load BASE
+			Add IND
+			Store PTR
+
+			LoadI PTR
+			Store VAL
+
+			Jns PintarCelda
+
+			Load IND
+			Add UNO
+			Store IND
+			Subt C_256
+			SkipCond 400
+			Jump LoopFinal
+			
+			Halt
+				  
+			
+/ Subrutina: Pintar celda
+PintarCelda, HEX 0
+             Load IND
+             Add BASE_DISP   
+             Store PTR_DISP
+             LoadI PTRV
+             Store VALV      
+             
+             / Caso 0: Oculto
+             Load VALV
+             Skipcond 400
+             Jump P_Bandera
+             Load C_GRIS_O
+             StoreI PTR_DISP
+             Jump P_Fin
+
+P_Bandera,   Load VALV
+             Subt DOS        
+             Skipcond 400
+             Jump P_Revelado
+             Load C_AMARILLO
+             StoreI PTR_DISP
+             Jump P_Fin
+
+P_Revelado,  Load VAL        
+             Subt MINA
+             Skipcond 400    
+             Jump P_Num
+             Load C_NEGRO    
+             StoreI PTR_DISP
+             Jump P_Fin
+
+P_Num,       Load VAL
+             Skipcond 400    / ¿Es 0?
+             Jump P_Es1
+             Load C_GRIS_P   / Revelado vacio (Gris claro)
+             StoreI PTR_DISP
+             Jump P_Fin
+
+P_Es1,       Load VAL
+             Subt UNO
+             Skipcond 400    / ¿Es 1?
+             Jump P_Es2
+             Load C_AZUL
+             StoreI PTR_DISP
+             Jump P_Fin
+
+P_Es2,       Load VAL
+             Subt DOS
+             Skipcond 400    / ¿Es 2?
+             Jump P_Es3
+             Load C_VERDE
+             StoreI PTR_DISP
+             Jump P_Fin
+
+P_Es3,       Load VAL
+             Subt TRES
+             Skipcond 400    / ¿Es 3?
+             Jump P_Es4
+             Load C_ROJO
+             StoreI PTR_DISP
+             Jump P_Fin
+
+P_Es4,       Load VAL  / Color para el 4 o mas
+			 Subt CUATRO
+			 SkipCond 400
+			 Jump P_Es5
+			 Load C_AZUL_D
+             StoreI PTR_DISP
+			 Jump P_Fin
+
+P_Es5,       Load VAL
+			 Subt CINCO
+			 SkipCond 400
+			 Jump P_Es6
+			 Load C_ROJO_D
+             StoreI PTR_DISP
+			 Jump P_Fin
+
+P_Es6,       Load VAL
+			 Subt SEIS
+			 SkipCond 400
+			 Jump P_Es7
+			 Load C_CIAN
+             StoreI PTR_DISP
+			 Jump P_Fin
+
+P_Es7,       Load VAL
+			 Subt SIETE
+			 SkipCond 400
+			 Jump P_Es8
+			 Load C_VIOLETA
+             StoreI PTR_DISP
+			 Jump P_Fin
+
+P_Es8,		 Load C_BLANCO
+			 StoreI PTR_DISP
+
+P_Fin,       JumpI PintarCelda
+
+/ Variables y Constantes
+FILA,       DEC 0
+COL,        DEC 0
+IND,        DEC 0
+VAL,        DEC 0
+VALV,       DEC 0
+PTR,        DEC 0
+PTRV,       DEC 0
+PTR_DISP,   DEC 0
+TEMP_COL,   HEX 0
+ACCION,     DEC 0
+RESTANTES,  DEC 0
+
+CERO,       DEC 0
+UNO,        DEC 1
+DOS,        DEC 2
+TRES,       DEC 3
+CUATRO,     DEC 4
+CINCO,      DEC 5
+SEIS,       DEC 6
+SIETE,      DEC 7
+DIECISEIS,  DEC 16
+REST_INI,   DEC 216
+C_256,      DEC 256
+REVE,       DEC 1
+MINA,       DEC 4095
+
+/ Variables para expansion
+QHEAD,      DEC 0
+QTAIL,      DEC 0
+QPTR,       DEC 0
+
+CURF,       DEC 0
+CURC,       DEC 0
+NROW,       DEC 0
+NCOL,       DEC 0
+
+MENOS1,     DEC -1
+
+BASE_QFILA, ADR QFILA
+BASE_QCOL,  ADR QCOL
+
+/ Colores
+C_GRIS_O,   HEX 2109	/ celda oculta = gris oscuro
+C_GRIS_P,   HEX 6318	/ 0 revelado = gris claro
+C_AMARILLO, HEX 7FE0 	/ bandera = amarillo
+C_NEGRO,    HEX 000   	/ mina revelada = negro
+
+C_AZUL,     HEX 001F	/ 1 = azul
+C_VERDE,    HEX FF0   	/ 2 = verde
+C_ROJO,     HEX 7C00  	/ 3 = rojo
+C_AZUL_D,   HEX 0010 	/ 4 = azul oscuro
+C_ROJO_D,   HEX 4000  	/ 5 = rojo oscuro
+C_CIAN,     HEX 03FF  	/ 6 = cian(turquesa)
+C_VIOLETA,  HEX 7C1F  	/ 7 = violeta
+C_BLANCO,   HEX 7FFF 	/ 8 = blanco
+
+BASE_DISP,  HEX F00
+C_FIN_DISP, HEX 1000
+
+
+BASE,     ADR TAB  / Apunta al inicio del nuevo mapa
+BASEV,    ADR TABV
+
+/ TABLERO REAL - Generado por Python
+TAB, DEC 0
+C0001, DEC 2
+C0002, DEC 4095
+C0003, DEC 2
+C0004, DEC 1
+C0005, DEC 1
+C0006, DEC 2
+C0007, DEC 1
+C0008, DEC 1
+C0009, DEC 0
+C0010, DEC 0
+C0011, DEC 1
+C0012, DEC 2
+C0013, DEC 2
+C0014, DEC 1
+C0015, DEC 0
+C0100, DEC 0
+C0101, DEC 2
+C0102, DEC 4095
+C0103, DEC 2
+C0104, DEC 1
+C0105, DEC 4095
+C0106, DEC 2
+C0107, DEC 4095
+C0108, DEC 2
+C0109, DEC 1
+C0110, DEC 0
+C0111, DEC 1
+C0112, DEC 4095
+C0113, DEC 4095
+C0114, DEC 1
+C0115, DEC 0
+C0200, DEC 0
+C0201, DEC 1
+C0202, DEC 1
+C0203, DEC 1
+C0204, DEC 1
+C0205, DEC 1
+C0206, DEC 2
+C0207, DEC 2
+C0208, DEC 4095
+C0209, DEC 2
+C0210, DEC 1
+C0211, DEC 2
+C0212, DEC 3
+C0213, DEC 3
+C0214, DEC 1
+C0215, DEC 0
+C0300, DEC 0
+C0301, DEC 1
+C0302, DEC 1
+C0303, DEC 1
+C0304, DEC 0
+C0305, DEC 0
+C0306, DEC 0
+C0307, DEC 2
+C0308, DEC 3
+C0309, DEC 4095
+C0310, DEC 2
+C0311, DEC 2
+C0312, DEC 4095
+C0313, DEC 2
+C0314, DEC 1
+C0315, DEC 1
+C0400, DEC 1
+C0401, DEC 3
+C0402, DEC 4095
+C0403, DEC 2
+C0404, DEC 0
+C0405, DEC 0
+C0406, DEC 0
+C0407, DEC 1
+C0408, DEC 4095
+C0409, DEC 3
+C0410, DEC 4095
+C0411, DEC 3
+C0412, DEC 2
+C0413, DEC 2
+C0414, DEC 4095
+C0415, DEC 1
+C0500, DEC 2
+C0501, DEC 4095
+C0502, DEC 4095
+C0503, DEC 2
+C0504, DEC 0
+C0505, DEC 0
+C0506, DEC 0
+C0507, DEC 1
+C0508, DEC 1
+C0509, DEC 2
+C0510, DEC 2
+C0511, DEC 4095
+C0512, DEC 1
+C0513, DEC 1
+C0514, DEC 1
+C0515, DEC 1
+C0600, DEC 4095
+C0601, DEC 4
+C0602, DEC 2
+C0603, DEC 1
+C0604, DEC 0
+C0605, DEC 0
+C0606, DEC 0
+C0607, DEC 0
+C0608, DEC 0
+C0609, DEC 0
+C0610, DEC 1
+C0611, DEC 1
+C0612, DEC 1
+C0613, DEC 0
+C0614, DEC 0
+C0615, DEC 0
+C0700, DEC 4095
+C0701, DEC 3
+C0702, DEC 0
+C0703, DEC 0
+C0704, DEC 0
+C0705, DEC 0
+C0706, DEC 0
+C0707, DEC 1
+C0708, DEC 2
+C0709, DEC 2
+C0710, DEC 1
+C0711, DEC 0
+C0712, DEC 0
+C0713, DEC 0
+C0714, DEC 0
+C0715, DEC 0
+C0800, DEC 4095
+C0801, DEC 2
+C0802, DEC 0
+C0803, DEC 0
+C0804, DEC 0
+C0805, DEC 1
+C0806, DEC 1
+C0807, DEC 2
+C0808, DEC 4095
+C0809, DEC 4095
+C0810, DEC 2
+C0811, DEC 1
+C0812, DEC 0
+C0813, DEC 0
+C0814, DEC 0
+C0815, DEC 0
+C0900, DEC 2
+C0901, DEC 2
+C0902, DEC 0
+C0903, DEC 0
+C0904, DEC 0
+C0905, DEC 1
+C0906, DEC 4095
+C0907, DEC 2
+C0908, DEC 2
+C0909, DEC 3
+C0910, DEC 4095
+C0911, DEC 1
+C0912, DEC 0
+C0913, DEC 0
+C0914, DEC 0
+C0915, DEC 0
+C1000, DEC 4095
+C1001, DEC 1
+C1002, DEC 0
+C1003, DEC 0
+C1004, DEC 0
+C1005, DEC 2
+C1006, DEC 2
+C1007, DEC 2
+C1008, DEC 0
+C1009, DEC 1
+C1010, DEC 1
+C1011, DEC 2
+C1012, DEC 1
+C1013, DEC 1
+C1014, DEC 0
+C1015, DEC 0
+C1100, DEC 1
+C1101, DEC 1
+C1102, DEC 1
+C1103, DEC 1
+C1104, DEC 1
+C1105, DEC 1
+C1106, DEC 4095
+C1107, DEC 1
+C1108, DEC 0
+C1109, DEC 0
+C1110, DEC 0
+C1111, DEC 1
+C1112, DEC 4095
+C1113, DEC 1
+C1114, DEC 0
+C1115, DEC 0
+C1200, DEC 0
+C1201, DEC 0
+C1202, DEC 2
+C1203, DEC 4095
+C1204, DEC 2
+C1205, DEC 1
+C1206, DEC 2
+C1207, DEC 2
+C1208, DEC 1
+C1209, DEC 0
+C1210, DEC 0
+C1211, DEC 1
+C1212, DEC 1
+C1213, DEC 2
+C1214, DEC 1
+C1215, DEC 1
+C1300, DEC 1
+C1301, DEC 1
+C1302, DEC 4
+C1303, DEC 4095
+C1304, DEC 3
+C1305, DEC 1
+C1306, DEC 2
+C1307, DEC 4095
+C1308, DEC 1
+C1309, DEC 0
+C1310, DEC 0
+C1311, DEC 0
+C1312, DEC 0
+C1313, DEC 2
+C1314, DEC 4095
+C1315, DEC 2
+C1400, DEC 2
+C1401, DEC 4095
+C1402, DEC 4
+C1403, DEC 4095
+C1404, DEC 3
+C1405, DEC 3
+C1406, DEC 4095
+C1407, DEC 3
+C1408, DEC 2
+C1409, DEC 1
+C1410, DEC 1
+C1411, DEC 1
+C1412, DEC 1
+C1413, DEC 3
+C1414, DEC 4095
+C1415, DEC 3
+C1500, DEC 2
+C1501, DEC 4095
+C1502, DEC 3
+C1503, DEC 2
+C1504, DEC 4095
+C1505, DEC 3
+C1506, DEC 4095
+C1507, DEC 2
+C1508, DEC 1
+C1509, DEC 4095
+C1510, DEC 1
+C1511, DEC 1
+C1512, DEC 4095
+C1513, DEC 2
+C1514, DEC 2
+C1515, DEC 4095
+
+/ TABLERO VISIBLE (Estado)
+/ 256 lineas de DEC 0
+TABV, DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+
+/ --- Cola para expansion ---
+QFILA, DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+
+QCOL, DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
+DEC 0
