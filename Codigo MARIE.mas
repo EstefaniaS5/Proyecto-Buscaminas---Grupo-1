@@ -3,7 +3,7 @@ ORG 100
 / Inicializacion
 Inicio,      Load C_GRIS_O
              Store TEMP_COL
-             Load BASE_DISP   / Direccion F00
+             Load BASE_DISP   / inicio del display (F00)
              Store PTR_DISP
 
 / Pinta el display de Gris Oscuro al empezar
@@ -22,8 +22,8 @@ LimpiarDisp, Load TEMP_COL
 			 JnS DibujarTablero
 			 Jump LoopJuego
 
-/ Subrutina: Dibujar todo el tablero visible
-/ Recorre las celdas y pinta si es TABV o TAB
+/ Subrutina: Dibuja todo el tablero visible
+/ Recorre las celdas y pinta cada una
 DibujarTablero, HEX 0
 				Load CERO
 				Store IND
@@ -51,7 +51,7 @@ DibLoop, Load BASEV
 		 JumpI DibujarTablero
 
 / Bucle principal del juego
-/ Entradas del usuario
+/ Entradas: fila, columna y accion
 LoopJuego,  Input
 			Store FILA
 
@@ -124,13 +124,13 @@ CalcularIndice, Load FILA
 
 				Load BASE
 				Add IND
-				Store PTR / celda real
+				Store PTR / puntero a tablero real
 
 				Load BASEV
 				Add IND
-				Store PTRV / estado visible
+				Store PTRV / puntero a tablero visible
 
-				/ 1 - revela
+				/ revisa que accion hace
 				Load ACCION
 				Subt UNO
 				SkipCond 400
@@ -144,14 +144,14 @@ AccionRevelar,  LoadI PTRV
                 LoadI PTR
                 Store VAL
 
-				/ Compara con mina
+				/ Si es mina, pierde
                 Load VAL
                 Subt MINA
                 SkipCond 400
                 Jump RevisarCero
                 Jump Perder
 
-				/ VAL == 0 - expande
+				/ VAL == 0, expande
 RevisarCero,    Load VAL
                 SkipCond 400
                 Jump RevelarSoloUna
@@ -170,7 +170,8 @@ RevelarSoloUna, Load REVE
                 SkipCond 400
                 Jump LoopJuego
                 Jump Ganar
-				
+
+				/ Pone o quita la bandera
 AccionBandera,  LoadI PTRV
 				SkipCond 400
 				Jump QuitarBandera
@@ -190,13 +191,13 @@ QuitarBandera,  LoadI PTRV
 				JnS DibujarTablero
 				Jump LoopJuego
 
-/ Expanción de 0
+/ Expansion de 0
 / Usa una cola de pares (fila, col)
 ExpandirInicio, Load CERO
                 Store QHEAD
                 Store QTAIL
 
-                /mete fila y col iniciales
+                / mete fila y col iniciales en la cola
                 Load FILA
                 Store NROW
                 Load COL
@@ -211,7 +212,7 @@ ExpandirLoop,   Load QHEAD
 
 ExpandirProcesar, JnS DequeuePair
 
-                /IND = CURF * 16 + CURC
+                / IND = CURF * 16 + CURC
                 Load CURF
                 Store IND
                 Load IND
@@ -230,7 +231,7 @@ ExpandirProcesar, JnS DequeuePair
                 Add CURC
                 Store IND
 
-                / punteros real y visible
+                / punteros tablero real y visible
                 Load BASE
                 Add IND
                 Store PTR
@@ -239,12 +240,12 @@ ExpandirProcesar, JnS DequeuePair
                 Add IND
                 Store PTRV
 
-                / si no esta oculta, saltar
+                / si no esta oculta, salta
                 LoadI PTRV
                 SkipCond 400
                 Jump ExpandirLoop
 
-                / si es mina, NO revelarla en expansion
+                / si es mina, no se revela en la expansion
                 LoadI PTR
                 Store VAL
                 Load VAL
@@ -260,12 +261,12 @@ RevelarActualExpand, Load REVE
                      Subt UNO
                      Store RESTANTES
 
-                     / si no es 0, no seguir expandiendo
+                     / si no es 0, no sigue expandiendo
                      Load VAL
                      SkipCond 400
                      Jump ExpandirLoop
 
-                     / si es 0, encolar 8 vecinos
+                     / si es 0, mete sus 8 vecinos
                      JnS EnqueueNeighbors
                      Jump ExpandirLoop
 
@@ -275,7 +276,7 @@ ExpandirFin,    JnS DibujarTablero
                 Jump LoopJuego
                 Jump Ganar
 
-/ Encola un par (NROW, NCOL) solo si esta dentro de 0..15
+/ Mete (NROW, NCOL) a la cola solo si esta dentro de 0..15
 TryEnqueue,     HEX 0
                 / fila >= 0
                 Load NROW
@@ -283,6 +284,7 @@ TryEnqueue,     HEX 0
                 Jump TE_FilaMax
                 JumpI TryEnqueue
 
+				/ fila < 16
 TE_FilaMax,     Load NROW
                 Subt DIECISEIS
                 SkipCond 000
@@ -294,6 +296,7 @@ TE_FilaMax,     Load NROW
                 Jump TE_ColMax
                 JumpI TryEnqueue
 
+				/ col < 16
 TE_ColMax,      Load NCOL
                 Subt DIECISEIS
                 SkipCond 000
@@ -322,7 +325,7 @@ TE_ColMax,      Load NCOL
 
                 JumpI TryEnqueue
 
-/ Saca un par de la cola y lo deja en CURF, CURC
+/ Saca un elemento de la cola y lo deja en CURF, CURC
 DequeuePair,    HEX 0
                 Load BASE_QFILA
                 Add QHEAD
@@ -342,7 +345,7 @@ DequeuePair,    HEX 0
 
                 JumpI DequeuePair
 
-/ Encola los 8 vecinos de (CURF, CURC)
+/ Mete los 8 vecinos de (CURF, CURC)
 EnqueueNeighbors, HEX 0
 
                 / (-1, -1)
@@ -415,10 +418,11 @@ EnqueueNeighbors, HEX 0
 
                 JumpI EnqueueNeighbors
 
+/ Fin del juego
+/ si gana o pierde, se revela el mapa completo
 Ganar, Jump RevelarMapaFinal
 Perder, Jump RevelarMapaFinal
 
-/ Revela el mapa final y termina el juego
 RevelarMapaFinal, Load CERO
 				  Store IND
 
@@ -446,9 +450,9 @@ LoopFinal,  Load BASEV
 			Jump LoopFinal
 			
 			Halt
-				  
-			
-/ Subrutina: Pintar celda
+					
+/ Subrutina: Pintar celda em el display
+/ Decide el color segun TABV y TAB
 PintarCelda, HEX 0
              Load IND
              Add BASE_DISP   
@@ -464,6 +468,7 @@ PintarCelda, HEX 0
              StoreI PTR_DISP
              Jump P_Fin
 
+			 / Caso 2: bandera
 P_Bandera,   Load VALV
              Subt DOS        
              Skipcond 400
@@ -472,6 +477,7 @@ P_Bandera,   Load VALV
              StoreI PTR_DISP
              Jump P_Fin
 
+			/ Caso 1: revela la mina o numero
 P_Revelado,  Load VAL        
              Subt MINA
              Skipcond 400    
@@ -480,38 +486,43 @@ P_Revelado,  Load VAL
              StoreI PTR_DISP
              Jump P_Fin
 
+			 / Numero 0
 P_Num,       Load VAL
-             Skipcond 400    / ¿Es 0?
+             Skipcond 400   
              Jump P_Es1
-             Load C_GRIS_P   / Revelado vacio (Gris claro)
+             Load C_GRIS_P   / revela vacio (Gris claro)
              StoreI PTR_DISP
              Jump P_Fin
 
+			 / Numero 1
 P_Es1,       Load VAL
              Subt UNO
-             Skipcond 400    / ¿Es 1?
+             Skipcond 400  
              Jump P_Es2
              Load C_AZUL
              StoreI PTR_DISP
              Jump P_Fin
 
+			 / Numero 2
 P_Es2,       Load VAL
              Subt DOS
-             Skipcond 400    / ¿Es 2?
+             Skipcond 400
              Jump P_Es3
              Load C_VERDE
              StoreI PTR_DISP
              Jump P_Fin
 
+			 / Numero 3
 P_Es3,       Load VAL
              Subt TRES
-             Skipcond 400    / ¿Es 3?
+             Skipcond 400
              Jump P_Es4
              Load C_ROJO
              StoreI PTR_DISP
              Jump P_Fin
 
-P_Es4,       Load VAL  / Color para el 4 o mas
+			 / Numero 4
+P_Es4,       Load VAL
 			 Subt CUATRO
 			 SkipCond 400
 			 Jump P_Es5
@@ -519,6 +530,7 @@ P_Es4,       Load VAL  / Color para el 4 o mas
              StoreI PTR_DISP
 			 Jump P_Fin
 
+			 / Numero 5
 P_Es5,       Load VAL
 			 Subt CINCO
 			 SkipCond 400
@@ -527,6 +539,7 @@ P_Es5,       Load VAL
              StoreI PTR_DISP
 			 Jump P_Fin
 
+			 / Numero 6
 P_Es6,       Load VAL
 			 Subt SEIS
 			 SkipCond 400
@@ -535,6 +548,7 @@ P_Es6,       Load VAL
              StoreI PTR_DISP
 			 Jump P_Fin
 
+			 / Numero 7
 P_Es7,       Load VAL
 			 Subt SIETE
 			 SkipCond 400
@@ -543,6 +557,7 @@ P_Es7,       Load VAL
              StoreI PTR_DISP
 			 Jump P_Fin
 
+			 / Numero 8
 P_Es8,		 Load C_BLANCO
 			 StoreI PTR_DISP
 
@@ -575,7 +590,7 @@ C_256,      DEC 256
 REVE,       DEC 1
 MINA,       DEC 4095
 
-/ Variables para expansion
+/ Variables para la expansion
 QHEAD,      DEC 0
 QTAIL,      DEC 0
 QPTR,       DEC 0
@@ -608,11 +623,11 @@ C_BLANCO,   HEX 7FFF 	/ 8 = blanco
 BASE_DISP,  HEX F00
 C_FIN_DISP, HEX 1000
 
+/ Bases de memoria
+BASE,     ADR TAB		/ tablero real
+BASEV,    ADR TABV		/ tablero visible
 
-BASE,     ADR TAB  / Apunta al inicio del nuevo mapa
-BASEV,    ADR TABV
-
-/ TABLERO REAL - Generado por Python
+/ TABLERO REAL - Parte generada por Python
 TAB, DEC 0
 C0001, DEC 2
 C0002, DEC 4095
@@ -870,7 +885,7 @@ C1513, DEC 2
 C1514, DEC 2
 C1515, DEC 4095
 
-/ TABLERO VISIBLE (Estado)
+/ TABLERO VISIBLE
 / 256 lineas de DEC 0
 TABV, DEC 0
 DEC 0
@@ -1129,7 +1144,7 @@ DEC 0
 DEC 0
 DEC 0
 
-/ --- Cola para expansion ---
+/ COLAS PARA LA EXPANSION
 QFILA, DEC 0
 DEC 0
 DEC 0
